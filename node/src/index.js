@@ -1,7 +1,21 @@
-function hello() {
-  console.log("Hello from subtree-split NodeJS!");
+/**
+ * Simple greeting function
+ * @param {string} name - Name to greet
+ * @returns {string} Greeting message
+ */
+function sayHello(name = "World") {
+  return `Hello, ${name}!`;
 }
 
-hello();
+/**
+ * Get package version
+ * @returns {string} Version number
+ */
+function getVersion() {
+  return "1.0.0";
+}
 
-module.exports = { hello };
+module.exports = {
+  sayHello,
+  getVersion,
+};

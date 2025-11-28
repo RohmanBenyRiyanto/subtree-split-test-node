@@ -1,9 +1,22 @@
-# Subtree Split Test – NodeJS
+# Node Package
 
-Sample NodeJS package that will be split automatically from monorepo.
+Auto-generated from monorepo subtree split.
 
-Run:
+## Installation
 
 ```bash
-node src/index.js
+npm install @your-scope/subtree-split-test-node
 ```
+
+## Usage
+
+```javascript
+const { sayHello, getVersion } = require('@your-scope/subtree-split-test-node');
+
+console.log(sayHello('Developer')); // Output: Hello, Developer!
+console.log(getVersion()); // Output: 1.0.0
+```
+
+## License
+
+MIT

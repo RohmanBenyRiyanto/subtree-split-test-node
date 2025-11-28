@@ -1,11 +1,16 @@
 <?php
 
-namespace SubtreeTest;
+namespace BenzDev\PhpPackage;
 
 class Hello
 {
-    public static function world()
+    public function sayHello(string $name = 'World'): string
     {
-        return "Hello from subtree-split PHP!";
+        return "Hello, {$name}!";
+    }
+
+    public function getVersion(): string
+    {
+        return '1.0.0';
     }
 }

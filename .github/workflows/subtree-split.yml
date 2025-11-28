@@ -1,62 +1,180 @@
-name: Subtree Split (FULL AUTO)
+name: Subtree Split & Auto Publish
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 jobs:
-  split:
+  subtree-split:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - name: php
+            path: php
+            repo: subtree-split-test-php
+          - name: node
+            path: node
+            repo: subtree-split-test-node
+
     steps:
-      - name: Checkout monorepo
-        uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.REPO_TOKEN }}
 
-      - name: Configure Git
+      - name: Setup Git Config
         run: |
+          git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
 
-      - name: Auto-create PHP and Node repos if missing
+      - name: Check if Remote Repository Exists
+        id: check_repo
         run: |
-          set -e
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${{ matrix.package.repo }}"
 
-          create_repo_if_missing() {
-            REPO_NAME=$1
-            echo "Checking repo $REPO_NAME..."
-            status=$(curl -s -o /dev/null -w "%{http_code}" \
-                     -H "Authorization: token $REPO_TOKEN" \
-                     https://api.github.com/repos/RohmanBenyRiyanto/$REPO_NAME)
-            if [ "$status" -eq 404 ]; then
-              echo "Repo $REPO_NAME not found. Creating..."
-              curl -s -X POST \
-                   -H "Authorization: token $REPO_TOKEN" \
-                   -H "Accept: application/vnd.github+json" \
-                   https://api.github.com/user/repos \
-                   -d "{\"name\":\"$REPO_NAME\",\"private\":false}"
-              echo "Waiting for repo $REPO_NAME to be ready..."
-              sleep 10
-            else
-              echo "Repo $REPO_NAME exists."
-            fi
-          }
+          echo "Checking repository: $REPO_OWNER/$REPO_NAME"
 
-          create_repo_if_missing "subtree-split-test-php"
-          create_repo_if_missing "subtree-split-test-node"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token ${{ secrets.REPO_TOKEN }}" \
+            "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME")
 
-      - name: Split php/
-        run: git subtree split --prefix=php -b php-split
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Repository exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Repository does not exist"
+          fi
 
-      - name: Push php subtree
+      - name: Create Remote Repository if Not Exists
+        if: steps.check_repo.outputs.exists == 'false'
         run: |
-          git push https://$REPO_TOKEN@github.com/RohmanBenyRiyanto/subtree-split-test-php \
-            php-split:main --force
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${{ matrix.package.repo }}"
+          PACKAGE_NAME="${{ matrix.package.name }}"
 
-      - name: Split node/
-        run: git subtree split --prefix=node -b node-split
+          echo "Creating repository: $REPO_NAME"
 
-      - name: Push node subtree
+          # Check if owner is an organization or user
+          USER_TYPE=$(curl -s -H "Authorization: token ${{ secrets.REPO_TOKEN }}" \
+            "https://api.github.com/users/$REPO_OWNER" | jq -r '.type')
+
+          if [ "$USER_TYPE" = "Organization" ]; then
+            API_URL="https://api.github.com/orgs/$REPO_OWNER/repos"
+          else
+            API_URL="https://api.github.com/user/repos"
+          fi
+
+          curl -X POST "$API_URL" \
+            -H "Authorization: token ${{ secrets.REPO_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d '{
+              "name": "'"$REPO_NAME"'",
+              "description": "Auto-generated '"$PACKAGE_NAME"' package from monorepo",
+              "private": false,
+              "auto_init": false
+            }'
+
+          echo "Repository created successfully"
+          sleep 5
+
+      - name: Split Subtree and Push
         run: |
-          git push https://$REPO_TOKEN@github.com/RohmanBenyRiyanto/subtree-split-test-node \
-            node-split:main --force
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${{ matrix.package.repo }}"
+          PACKAGE_PATH="${{ matrix.package.path }}"
+          BRANCH="${{ github.ref_name }}"
+
+          echo "Splitting $PACKAGE_PATH to $REPO_NAME..."
+
+          # Create temporary branch for subtree
+          TEMP_BRANCH="split-${{ matrix.package.name }}-$(date +%s)"
+
+          # Split subtree
+          git subtree split --prefix="$PACKAGE_PATH" -b "$TEMP_BRANCH"
+
+          # Push to remote repository
+          git push -f "https://${{ secrets.REPO_TOKEN }}@github.com/$REPO_OWNER/$REPO_NAME.git" \
+            "$TEMP_BRANCH:$BRANCH"
+
+          # Cleanup temporary branch
+          git branch -D "$TEMP_BRANCH"
+
+          echo "Successfully pushed $PACKAGE_PATH to $REPO_NAME"
+
+      - name: Create Release Tag (if tagged)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          REPO_OWNER="${{ github.repository_owner }}"
+          REPO_NAME="${{ matrix.package.repo }}"
+          TAG_NAME="${{ github.ref_name }}"
+
+          echo "Creating tag $TAG_NAME in $REPO_NAME..."
+
+          # Get the commit SHA from the subtree
+          COMMIT_SHA=$(git rev-parse HEAD)
+
+          # Create tag in remote repository
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.REPO_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/git/refs" \
+            -d '{
+              "ref": "refs/tags/'"$TAG_NAME"'",
+              "sha": "'"$COMMIT_SHA"'"
+            }'
+
+          echo "Tag $TAG_NAME created in $REPO_NAME"
+
+  publish-npm:
+    needs: subtree-split
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout Node Package
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/subtree-split-test-node
+          token: ${{ secrets.REPO_TOKEN }}
+          ref: ${{ github.ref_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish to NPM
+        run: |
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        continue-on-error: true
+
+  publish-composer:
+    needs: subtree-split
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout PHP Package
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/subtree-split-test-php
+          token: ${{ secrets.REPO_TOKEN }}
+          ref: ${{ github.ref_name }}
+
+      - name: Validate Composer
+        run: |
+          composer validate --no-check-all --strict
+        continue-on-error: true
+
+      - name: Note about Packagist
+        run: |
+          echo "Packagist will auto-detect new tags if repository is registered"
+          echo "Register at: https://packagist.org/packages/submit"

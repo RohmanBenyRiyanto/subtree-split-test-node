@@ -1,11 +1,24 @@
-# Subtree Split Test – PHP
+# PHP Package
 
-Sample PHP package that will be split automatically from monorepo.
+Auto-generated from monorepo subtree split.
 
-Usage:
+## Installation
+
+```bash
+composer require benz-dev/subtree-split-test-php
+```
+
+## Usage
 
 ```php
-use SubtreeTest\Hello;
+<?php
 
-echo Hello::world();
+use BenzDev\PhpPackage\Hello;
+
+$hello = new Hello();
+echo $hello->sayHello('Developer'); // Output: Hello, Developer!
 ```
+
+## License
+
+MIT

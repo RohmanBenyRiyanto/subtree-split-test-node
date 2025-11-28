@@ -1,9 +1,20 @@
 {
-  "name": "subtree-split-test-node",
+  "name": "@benz-dev/subtree-split-test-node",
   "version": "1.0.0",
-  "description": "Sample NodeJS package for subtree split test",
+  "description": "Node package from monorepo split",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "monorepo",
+    "subtree",
+    "split"
+  ],
+  "author": "Rohman Beny <rohmanbenyriyanto.work@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RohmanBenyRiyanto/subtree-split-test-node.git"
   }
 }

@@ -1,13 +1,27 @@
 {
   "name": "benz-dev/subtree-split-test-php",
-  "description": "Sample PHP package for subtree split testing",
-  "version": "1.0.0",
-  "autoload": {
-    "psr-4": {
-      "SubtreeTest\\": "src/"
+  "description": "PHP package from monorepo split",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Rohman Beny Riyanto",
+      "email": "rohmanbenyriyanto.work@gmail.com"
     }
-  },
+  ],
   "require": {
     "php": ">=7.4"
-  }
+  },
+  "autoload": {
+    "psr-4": {
+      "YourVendor\\PhpPackage\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "YourVendor\\PhpPackage\\Tests\\": "tests/"
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
 }
